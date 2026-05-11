@@ -1,65 +1,61 @@
-import Image from "next/image";
+import { getRaceSchedule } from '@/lib/ergast'
+import { MapPin, Clock, Flag } from 'lucide-react'
 
-export default function Home() {
+export default async function HomePage() {
+  const races = await getRaceSchedule()
+
+  const today = new Date()
+  const upcoming = races.filter((r: any) => new Date(r.date_end) >= today)
+  const past = races.filter((r: any) => new Date(r.date_end) < today)
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
+    <div className="max-w-6xl mx-auto px-4 py-8">
+      <h1 className="text-3xl font-bold mb-2">
+        Calendário <span className="text-red-500">2026</span>
+      </h1>
+      <p className="text-zinc-400 mb-8">Todas as corridas da temporada</p>
+
+      <h2 className="text-xl font-semibold mb-4 text-red-400 flex items-center gap-2">
+        <Flag size={20} /> Próximas corridas
+      </h2>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-12">
+        {upcoming.slice(0, 6).map((race: any) => (
+          <RaceCard key={race.meeting_key} race={race} upcoming />
+        ))}
+      </div>
+
+      <h2 className="text-xl font-semibold mb-4 text-zinc-400">Corridas realizadas</h2>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {[...past].reverse().map((race: any) => (
+          <RaceCard key={race.meeting_key} race={race} upcoming={false} />
+        ))}
+      </div>
     </div>
-  );
+  )
+}
+
+function RaceCard({ race, upcoming }: { race: any; upcoming: boolean }) {
+  const date = new Date(race.date_start)
+  return (
+    <div className={`rounded-xl border p-5 transition-all hover:scale-[1.02]
+      ${upcoming
+        ? 'bg-zinc-900 border-red-600/40 hover:border-red-500'
+        : 'bg-zinc-900/50 border-zinc-800 hover:border-zinc-600'
+      }`}>
+      <h3 className="font-bold text-lg leading-tight mb-3">{race.meeting_name}</h3>
+      <div className="flex items-center gap-2 text-sm text-zinc-400 mb-1">
+        <MapPin size={14} className="text-red-400" />
+        {race.circuit_short_name}, {race.country_name}
+      </div>
+      <div className="flex items-center gap-2 text-sm text-zinc-400">
+        <Clock size={14} className="text-red-400" />
+        {date.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}
+      </div>
+      {upcoming && (
+        <div className="mt-3 inline-block bg-red-600/20 text-red-400 text-xs px-3 py-1 rounded-full border border-red-600/30">
+          Em breve
+        </div>
+      )}
+    </div>
+  )
 }
