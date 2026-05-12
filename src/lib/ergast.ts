@@ -23,3 +23,11 @@ export async function getDrivers() {
   const data = await res.json()
   return data
 }
+
+export async function getRealStandings() {
+  const res = await fetch('https://f1api.dev/api/current/drivers-championship', {
+    next: { revalidate: 300 }
+  })
+  const data = await res.json()
+  return data
+}

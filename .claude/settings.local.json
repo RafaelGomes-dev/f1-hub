@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(cmd /c \"dir /a /b \"\"c:\\\\Users\\\\rafin\\\\f1-hub\\\\src\\\\app\\\\standings\\\\\"\"\")",
+      "PowerShell(cmd /c \"dir /a /b \"\"c:\\\\Users\\\\rafin\\\\f1-hub\\\\src\\\\app\\\\standings\\\\driver\\\\\"\"\")"
+    ]
+  }
+}
