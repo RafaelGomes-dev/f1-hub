@@ -1,5 +1,6 @@
 'use client'
 import { useState } from 'react'
+import Link from 'next/link'
 
 export default function StandingsTabs({ drivers, constructors }: { drivers: any[], constructors: any[] }) {
     const [tab, setTab] = useState<'drivers' | 'constructors'>('drivers')
@@ -35,9 +36,9 @@ export default function StandingsTabs({ drivers, constructors }: { drivers: any[
                                 {entry.position ?? i + 1}
                             </span>
                             <div className="flex-1">
-                                <a href={`/standings/driver/${entry.driverId}`} className="font-semibold hover:text-red-400 transition-colors">
+                                <Link href={`/standings/driver/${entry.driverId}`} className="font-semibold hover:text-red-400 transition-colors">
                                     {entry.driver?.name} {entry.driver?.surname}
-                                </a>
+                                </Link>
                                 <div className="text-xs text-zinc-500 mt-0.5">{entry.team?.teamName}</div>
                             </div>
                             <div className="text-right">
@@ -63,9 +64,9 @@ export default function StandingsTabs({ drivers, constructors }: { drivers: any[
                                 {entry.position ?? i + 1}
                             </span>
                             <div className="flex-1">
-                                <a href={`/standings/constructor/${entry.teamId}`} className="font-semibold hover:text-red-400 transition-colors">
+                                <Link href={`/standings/constructor/${entry.teamId}`} className="font-semibold hover:text-red-400 transition-colors">
                                     {entry.team?.teamName}
-                                </a>
+                                </Link>
                                 <div className="text-xs text-zinc-500 mt-0.5">{entry.team?.country}</div>
                             </div>
                             <div className="text-right">

@@ -41,7 +41,18 @@ export default async function ConstructorPage({ params }: { params: Promise<{ id
     )
   }
 
-  const team = entry.team
+  const team = entry.team ?? null
+
+  if (!team) {
+    return (
+      <div className="max-w-3xl mx-auto px-4 py-8">
+        <a href="/standings" className="text-zinc-500 hover:text-white text-sm mb-6 inline-flex items-center gap-1 transition-colors">
+          ← Voltar para Standings
+        </a>
+        <p className="text-zinc-400 mt-8">Dados da equipe indisponíveis.</p>
+      </div>
+    )
+  }
   const wins = races.filter((r: any) =>
     r.Results?.some((res: any) => res.position === '1')
   )
