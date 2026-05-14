@@ -1,3 +1,6 @@
+import Link from 'next/link'
+import { fetchDriverHeadshots, getTeamColor } from '@/lib/f1Images'
+
 async function getConstructorEntry(id: string) {
   try {
     const res = await fetch('https://f1api.dev/api/current/constructors-championship', {
@@ -10,14 +13,27 @@ async function getConstructorEntry(id: string) {
   }
 }
 
-async function getConstructorRaces(id: string) {
+async function getTeamDrivers(teamName: string) {
   try {
-    const res = await fetch(
-      `https://api.jolpi.ca/ergast/f1/2026/constructors/${id}/results/?format=json&limit=30`,
-      { next: { revalidate: 300 } }
-    )
+    const res = await fetch('https://f1api.dev/api/current/drivers-championship', {
+      next: { revalidate: 300 },
+    })
     const data = await res.json()
-    return (data?.MRData?.RaceTable?.Races ?? []) as any[]
+    return (data?.drivers_championship ?? []).filter(
+      (d: any) => d.team?.teamName === teamName
+    ) as any[]
+  } catch {
+    return []
+  }
+}
+
+async function getAllRaces() {
+  try {
+    const res = await fetch('https://f1api.dev/api/current', {
+      next: { revalidate: 300 },
+    })
+    const data = await res.json()
+    return (data?.races ?? []) as any[]
   } catch {
     return []
   }
@@ -25,10 +41,7 @@ async function getConstructorRaces(id: string) {
 
 export default async function ConstructorPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const [entry, races] = await Promise.all([
-    getConstructorEntry(id),
-    getConstructorRaces(id),
-  ])
+  const entry = await getConstructorEntry(id)
 
   if (!entry) {
     return (
@@ -53,18 +66,19 @@ export default async function ConstructorPage({ params }: { params: Promise<{ id
       </div>
     )
   }
-  const wins = races.filter((r: any) =>
-    r.Results?.some((res: any) => res.position === '1')
-  )
 
-  // collect points per race (sum of both drivers)
-  const racesSummary = races.map((r: any) => {
-    const results: any[] = r.Results ?? []
-    const totalPts = results.reduce((acc: number, res: any) => acc + Number(res.points ?? 0), 0)
-    const best = results.reduce((best: any, res: any) =>
-      !best || Number(res.position) < Number(best.position) ? res : best, null)
-    return { race: r, totalPts, best, results }
-  })
+  const [allRaces, teamDrivers, headshots] = await Promise.all([
+    getAllRaces(),
+    getTeamDrivers(team.teamName),
+    fetchDriverHeadshots(),
+  ])
+
+  const today = new Date()
+  const pastRaces = allRaces.filter(
+    (r: any) => r.schedule?.race?.date && new Date(r.schedule.race.date) < today
+  )
+  const fastestLaps = pastRaces.filter((r: any) => r.fast_lap?.fast_lap_team_id === id)
+  const teamColor = getTeamColor(team.teamName)
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-8">
@@ -72,15 +86,23 @@ export default async function ConstructorPage({ params }: { params: Promise<{ id
         ← Voltar para Standings
       </a>
 
-      <div className="mt-4 mb-8">
-        <h1 className="text-4xl font-bold text-red-500">{team.teamName}</h1>
-        <p className="text-zinc-400 mt-1">{team.country}</p>
-        <p className="text-zinc-500 text-sm mt-1">
-          Desde {team.firstAppareance} · {team.constructorsChampionships} campeonatos de construtores
-        </p>
+      <div className="mt-4 mb-8 flex items-start gap-4">
+        <div
+          className="w-1.5 self-stretch rounded-full flex-shrink-0"
+          style={{ backgroundColor: teamColor }}
+        />
+        <div>
+          <h1 className="text-4xl font-bold" style={{ color: teamColor }}>{team.teamName}</h1>
+          <p className="text-zinc-400 mt-1">{team.country}</p>
+          <p className="text-zinc-500 text-sm mt-1">
+            Na F1 desde {team.firstAppareance}
+            {team.constructorsChampionships ? ` · ${team.constructorsChampionships}× construtores` : ''}
+            {team.driversChampionships ? ` · ${team.driversChampionships}× pilotos` : ''}
+          </p>
+        </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-3 mb-10">
+      <div className="grid grid-cols-4 gap-3 mb-8">
         <div className="bg-zinc-900 rounded-xl border border-zinc-800 p-4 text-center">
           <div className="text-3xl font-bold text-red-400">{entry.position}°</div>
           <div className="text-zinc-500 text-xs mt-1">Campeonato</div>
@@ -93,56 +115,104 @@ export default async function ConstructorPage({ params }: { params: Promise<{ id
           <div className="text-3xl font-bold text-yellow-400">{entry.wins}</div>
           <div className="text-zinc-500 text-xs mt-1">Vitórias</div>
         </div>
+        <div className="bg-zinc-900 rounded-xl border border-zinc-800 p-4 text-center">
+          <div className="text-3xl font-bold text-purple-400">{fastestLaps.length}</div>
+          <div className="text-zinc-500 text-xs mt-1">Voltas rápidas</div>
+        </div>
       </div>
 
-      {wins.length > 0 && (
+      {teamDrivers.length > 0 && (
         <div className="mb-8">
-          <h2 className="text-lg font-bold mb-3">Vitórias em 2026</h2>
-          <div className="bg-zinc-900 rounded-xl border border-zinc-800 overflow-hidden">
-            {wins.map((race: any) => {
-              const winner = race.Results?.find((r: any) => r.position === '1')
+          <h2 className="text-lg font-bold mb-3">Pilotos 2026</h2>
+          <div className="grid grid-cols-2 gap-3">
+            {teamDrivers.map((d: any) => {
+              const headshot = headshots[String(d.driver?.number)]
               return (
-                <div key={race.round} className="flex items-center gap-4 px-5 py-4 border-b border-zinc-800 last:border-0">
-                  <div className="text-yellow-400 font-bold text-lg">1°</div>
-                  <div className="flex-1">
-                    <div className="font-semibold">{race.raceName}</div>
-                    <div className="text-xs text-zinc-500">
-                      {winner ? `${winner.Driver?.givenName} ${winner.Driver?.familyName}` : ''} · {race.Circuit?.circuitName}
+                <Link
+                  key={d.driverId}
+                  href={`/standings/driver/${d.driverId}`}
+                  className="bg-zinc-900 rounded-xl border border-zinc-800 p-4 hover:border-red-600/50 transition-colors block"
+                >
+                  <div className="flex items-center gap-3 mb-3">
+                    {headshot ? (
+                      <img
+                        src={headshot}
+                        alt=""
+                        className="w-12 h-12 rounded-full object-cover object-top bg-zinc-800 flex-shrink-0"
+                      />
+                    ) : (
+                      <div className="w-12 h-12 rounded-full bg-zinc-800 flex-shrink-0" />
+                    )}
+                    <div>
+                      <div className="font-semibold">{d.driver?.name} {d.driver?.surname}</div>
+                      <div className="text-zinc-500 text-sm mt-0.5">
+                        #{d.driver?.number}{d.driver?.nationality ? ` · ${d.driver.nationality}` : ''}
+                      </div>
                     </div>
                   </div>
-                  <div className="text-zinc-500 text-sm">
-                    {new Date(race.date).toLocaleDateString('pt-BR')}
+                  <div className="flex gap-4">
+                    <div>
+                      <div className={`font-bold text-lg ${Number(d.position) <= 3 ? 'text-yellow-400' : 'text-red-400'}`}>
+                        {d.position}°
+                      </div>
+                      <div className="text-zinc-600 text-xs">Campeonato</div>
+                    </div>
+                    <div>
+                      <div className="font-bold text-lg text-white">{d.points}</div>
+                      <div className="text-zinc-600 text-xs">Pontos</div>
+                    </div>
+                    {d.wins > 0 && (
+                      <div>
+                        <div className="font-bold text-lg text-yellow-400">{d.wins}</div>
+                        <div className="text-zinc-600 text-xs">Vitórias</div>
+                      </div>
+                    )}
                   </div>
-                </div>
+                </Link>
               )
             })}
           </div>
         </div>
       )}
 
-      {racesSummary.length > 0 && (
+      {pastRaces.length > 0 && (
         <div>
-          <h2 className="text-lg font-bold mb-3">Resultados 2026</h2>
+          <h2 className="text-lg font-bold mb-3">Temporada 2026</h2>
           <div className="bg-zinc-900 rounded-xl border border-zinc-800 overflow-hidden">
-            {racesSummary.map(({ race, totalPts, results }) => (
-              <div key={race.round} className="px-5 py-4 border-b border-zinc-800 last:border-0 hover:bg-zinc-800/40 transition-colors">
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="flex-1 text-sm font-medium">{race.raceName}</span>
-                  <span className="text-red-400 font-semibold text-sm">{totalPts} pts</span>
-                </div>
-                <div className="flex gap-4">
-                  {results.map((res: any) => {
-                    const pos = Number(res.position)
-                    return (
-                      <span key={res.Driver?.driverId} className={`text-xs
-                        ${pos === 1 ? 'text-yellow-400' : pos === 2 ? 'text-zinc-300' : pos === 3 ? 'text-amber-600' : 'text-zinc-500'}`}>
-                        {res.Driver?.familyName} {pos}°
+            {pastRaces.map((race: any) => {
+              const isWin = race.teamWinner?.teamId === id
+              const isFL = race.fast_lap?.fast_lap_team_id === id
+              const winnerDriver = isWin ? race.winner : null
+              return (
+                <div key={race.round} className="flex items-center gap-4 px-5 py-4 border-b border-zinc-800 last:border-0 hover:bg-zinc-800/40 transition-colors">
+                  <span className={`w-7 text-center font-bold text-sm ${isWin ? 'text-yellow-400' : 'text-zinc-600'}`}>
+                    {isWin ? '1°' : '–'}
+                  </span>
+                  <div className="flex-1">
+                    <div className="text-sm font-medium">{race.raceName}</div>
+                    <div className="text-xs text-zinc-500 mt-0.5">
+                      {race.circuit?.country} · Round {race.round}
+                      {winnerDriver && ` · ${winnerDriver.name} ${winnerDriver.surname}`}
+                    </div>
+                  </div>
+                  <div className="flex gap-1 items-center">
+                    {isWin && (
+                      <span className="text-xs bg-yellow-400/10 text-yellow-400 border border-yellow-400/20 px-2 py-0.5 rounded-full">
+                        VITÓRIA
                       </span>
-                    )
-                  })}
+                    )}
+                    {isFL && (
+                      <span className="text-xs bg-purple-400/10 text-purple-400 border border-purple-400/20 px-2 py-0.5 rounded-full">
+                        VR
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-zinc-500 text-sm">
+                    {new Date(race.schedule.race.date).toLocaleDateString('pt-BR')}
+                  </div>
                 </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         </div>
       )}
