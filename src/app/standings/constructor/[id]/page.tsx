@@ -1,6 +1,8 @@
 import Link from 'next/link'
 import { fetchDriverHeadshots, getTeamColor } from '@/lib/f1Images'
 
+const CURRENT_YEAR = new Date().getFullYear()
+
 async function getConstructorEntry(id: string) {
   try {
     const res = await fetch('https://f1api.dev/api/current/constructors-championship', {
@@ -47,7 +49,7 @@ export default async function ConstructorPage({ params }: { params: Promise<{ id
     return (
       <div className="max-w-3xl mx-auto px-4 py-8">
         <a href="/standings" className="text-zinc-500 hover:text-white text-sm mb-6 inline-flex items-center gap-1 transition-colors">
-          ← Voltar para Standings
+          ← Classificação
         </a>
         <p className="text-zinc-400 mt-8">Equipe não encontrada.</p>
       </div>
@@ -60,7 +62,7 @@ export default async function ConstructorPage({ params }: { params: Promise<{ id
     return (
       <div className="max-w-3xl mx-auto px-4 py-8">
         <a href="/standings" className="text-zinc-500 hover:text-white text-sm mb-6 inline-flex items-center gap-1 transition-colors">
-          ← Voltar para Standings
+          ← Classificação
         </a>
         <p className="text-zinc-400 mt-8">Dados da equipe indisponíveis.</p>
       </div>
@@ -83,7 +85,7 @@ export default async function ConstructorPage({ params }: { params: Promise<{ id
   return (
     <div className="max-w-3xl mx-auto px-4 py-8">
       <a href="/standings" className="text-zinc-500 hover:text-white text-sm mb-6 inline-flex items-center gap-1 transition-colors">
-        ← Voltar para Standings
+        ← Classificação
       </a>
 
       <div className="mt-4 mb-8 flex items-start gap-4">
@@ -123,7 +125,7 @@ export default async function ConstructorPage({ params }: { params: Promise<{ id
 
       {teamDrivers.length > 0 && (
         <div className="mb-8">
-          <h2 className="text-lg font-bold mb-3">Pilotos 2026</h2>
+          <h2 className="text-lg font-bold mb-3">Pilotos {CURRENT_YEAR}</h2>
           <div className="grid grid-cols-2 gap-3">
             {teamDrivers.map((d: any) => {
               const headshot = headshots[String(d.driver?.number)]
@@ -177,7 +179,7 @@ export default async function ConstructorPage({ params }: { params: Promise<{ id
 
       {pastRaces.length > 0 && (
         <div>
-          <h2 className="text-lg font-bold mb-3">Temporada 2026</h2>
+          <h2 className="text-lg font-bold mb-3">Temporada {CURRENT_YEAR}</h2>
           <div className="bg-zinc-900 rounded-xl border border-zinc-800 overflow-hidden">
             {pastRaces.map((race: any) => {
               const isWin = race.teamWinner?.teamId === id
@@ -191,7 +193,7 @@ export default async function ConstructorPage({ params }: { params: Promise<{ id
                   <div className="flex-1">
                     <div className="text-sm font-medium">{race.raceName}</div>
                     <div className="text-xs text-zinc-500 mt-0.5">
-                      {race.circuit?.country} · Round {race.round}
+                      {race.circuit?.country} · R{race.round}
                       {winnerDriver && ` · ${winnerDriver.name} ${winnerDriver.surname}`}
                     </div>
                   </div>

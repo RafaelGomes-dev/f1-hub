@@ -21,13 +21,13 @@ export default function StandingsTabs({
           onClick={() => setTab('drivers')}
           className={`px-5 py-2 rounded-lg text-sm font-medium transition-colors
             ${tab === 'drivers' ? 'bg-red-600 text-white' : 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700'}`}>
-          🏆 Pilotos
+          Pilotos
         </button>
         <button
           onClick={() => setTab('constructors')}
           className={`px-5 py-2 rounded-lg text-sm font-medium transition-colors
             ${tab === 'constructors' ? 'bg-red-600 text-white' : 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700'}`}>
-          🏗️ Construtoras
+          Construtores
         </button>
       </div>
 

@@ -1,9 +1,12 @@
 import Link from 'next/link'
 import { COUNTRY_FLAGS, getTeamColor } from '@/lib/f1Images'
 
-async function getCurrentRace(round: number) {
+const CURRENT_YEAR = new Date().getFullYear()
+
+async function getRace(round: number, year: number) {
   try {
-    const res = await fetch('https://f1api.dev/api/current', { next: { revalidate: 300 } })
+    const slug = year === CURRENT_YEAR ? 'current' : String(year)
+    const res = await fetch(`https://f1api.dev/api/${slug}`, { next: { revalidate: 300 } })
     const data = await res.json()
     return (data?.races ?? []).find((r: any) => Number(r.round) === round) ?? null
   } catch {
@@ -11,8 +14,113 @@ async function getCurrentRace(round: number) {
   }
 }
 
-async function getPastWinnersAtCircuit(circuitId: string, currentYear: number) {
-  const years = [1, 2, 3, 4, 5].map(n => currentYear - n)
+// Maps f1api.dev circuitId → bacinger/f1-circuits GeoJSON feature id
+// Some IDs changed between seasons (2023 vs 2024+), so both are kept
+const CIRCUIT_GEOJSON_ID: Record<string, string> = {
+  albert_park: 'au-1953',
+  bahrain: 'bh-2002',
+  shanghai: 'cn-2004',
+  catalunya: 'es-1991',      // 2023
+  montmelo: 'es-1991',       // 2024+
+  monaco: 'mc-1929',
+  villeneuve: 'ca-1978',     // 2023
+  gilles_villeneuve: 'ca-1978', // 2024+
+  ricard: 'fr-1969',
+  red_bull_ring: 'at-1969',
+  silverstone: 'gb-1948',
+  hockenheimring: 'de-1932',
+  hungaroring: 'hu-1986',
+  spa: 'be-1925',
+  monza: 'it-1922',
+  marina_bay: 'sg-2008',
+  sochi: 'ru-2014',
+  suzuka: 'jp-1962',
+  americas: 'us-2012',       // 2023
+  austin: 'us-2012',         // 2024+
+  rodriguez: 'mx-1962',      // 2023
+  hermanos_rodriguez: 'mx-1962', // 2024+
+  interlagos: 'br-1940',
+  yas_marina: 'ae-2009',
+  imola: 'it-1953',
+  nurburgring: 'de-1927',
+  portimao: 'pt-2008',
+  mugello: 'it-1914',
+  sepang: 'my-1999',
+  istanbul: 'tr-2005',
+  zandvoort: 'nl-1948',
+  jeddah: 'sa-2021',
+  miami: 'us-2022',
+  lusail: 'qa-2004',
+  madring: 'es-2026',
+  baku: 'az-2016',
+  vegas: 'us-2023',
+  indianapolis: 'us-1909',
+}
+
+function coordsToSVG(coords: [number, number][]): string {
+  if (coords.length < 3) return ''
+
+  const lons = coords.map(c => c[0])
+  const lats = coords.map(c => c[1])
+  const minLon = Math.min(...lons), maxLon = Math.max(...lons)
+  const minLat = Math.min(...lats), maxLat = Math.max(...lats)
+  const lonRange = maxLon - minLon || 1
+  const latRange = maxLat - minLat || 1
+
+  const viewW = 400, viewH = 300, pad = 20
+  const scale = Math.min((viewW - pad * 2) / lonRange, (viewH - pad * 2) / latRange)
+  const trackW = lonRange * scale, trackH = latRange * scale
+  const ox = pad + ((viewW - pad * 2) - trackW) / 2
+  const oy = pad + ((viewH - pad * 2) - trackH) / 2
+
+  const pts = coords.map(([lon, lat]) => {
+    const x = ox + (lon - minLon) * scale
+    const y = oy + trackH - (lat - minLat) * scale
+    return `${x.toFixed(1)} ${y.toFixed(1)}`
+  })
+
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${viewW} ${viewH}" fill="none">
+    <path d="M ${pts.join(' L ')} Z" stroke="#ef4444" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  </svg>`
+}
+
+type CircuitData = {
+  svg: string
+  length: number
+  opened: number
+  firstGP: number
+  altitude: number | null
+}
+
+async function getCircuitData(circuitId: string): Promise<CircuitData | null> {
+  const geoId = CIRCUIT_GEOJSON_ID[circuitId]
+  if (!geoId) return null
+  try {
+    const res = await fetch(
+      'https://raw.githubusercontent.com/bacinger/f1-circuits/master/f1-circuits.geojson',
+      { next: { revalidate: 86400 } }
+    )
+    if (!res.ok) return null
+    const data = await res.json()
+    const feature = (data.features as any[]).find(f => f.properties?.id === geoId)
+    if (!feature) return null
+    const coords = feature.geometry?.coordinates as [number, number][] | undefined
+    if (!coords?.length) return null
+    const p = feature.properties
+    return {
+      svg: coordsToSVG(coords),
+      length: p.length ?? 0,
+      opened: p.opened ?? 0,
+      firstGP: p.firstgp ?? 0,
+      altitude: p.altitude ?? null,
+    }
+  } catch {
+    return null
+  }
+}
+
+async function getPastWinnersAtCircuit(circuitId: string, fromYear: number) {
+  const years = [1, 2, 3, 4, 5].map(n => fromYear - n)
 
   const results = await Promise.allSettled(
     years.map(async year => {
@@ -37,14 +145,24 @@ async function getPastWinnersAtCircuit(circuitId: string, currentYear: number) {
     .map(r => r.value)
 }
 
-export default async function RacePage({ params }: { params: Promise<{ round: string }> }) {
+export default async function RacePage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ round: string }>
+  searchParams: Promise<{ year?: string }>
+}) {
   const { round: roundParam } = await params
+  const { year: yearParam } = await searchParams
   const round = parseInt(roundParam)
+  const year = yearParam && !isNaN(Number(yearParam)) ? Number(yearParam) : CURRENT_YEAR
+  const isPastSeason = year < CURRENT_YEAR
+  const backLink = isPastSeason ? `/?year=${year}` : '/'
 
   if (isNaN(round)) {
     return (
       <div className="max-w-3xl mx-auto px-4 py-8">
-        <Link href="/" className="text-zinc-500 hover:text-white text-sm inline-flex items-center gap-1 transition-colors">
+        <Link href={backLink} className="text-zinc-500 hover:text-white text-sm inline-flex items-center gap-1 transition-colors">
           ← Calendário
         </Link>
         <p className="text-zinc-400 mt-8">Corrida não encontrada.</p>
@@ -52,12 +170,12 @@ export default async function RacePage({ params }: { params: Promise<{ round: st
     )
   }
 
-  const race = await getCurrentRace(round)
+  const race = await getRace(round, year)
 
   if (!race) {
     return (
       <div className="max-w-3xl mx-auto px-4 py-8">
-        <Link href="/" className="text-zinc-500 hover:text-white text-sm inline-flex items-center gap-1 transition-colors">
+        <Link href={backLink} className="text-zinc-500 hover:text-white text-sm inline-flex items-center gap-1 transition-colors">
           ← Calendário
         </Link>
         <p className="text-zinc-400 mt-8">Corrida não encontrada.</p>
@@ -66,24 +184,24 @@ export default async function RacePage({ params }: { params: Promise<{ round: st
   }
 
   const today = new Date()
-  const currentYear = today.getFullYear()
   const raceDate = race.schedule?.race?.date ? new Date(race.schedule.race.date) : null
   const isCompleted = !!race.winner
   const daysLeft = raceDate && raceDate > today
     ? Math.ceil((raceDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
     : null
 
-  const pastWinners = race.circuit?.circuitId
-    ? await getPastWinnersAtCircuit(race.circuit.circuitId, currentYear)
-    : []
+  const [pastWinners, circuitData] = await Promise.all([
+    race.circuit?.circuitId ? getPastWinnersAtCircuit(race.circuit.circuitId, year) : Promise.resolve([]),
+    race.circuit?.circuitId ? getCircuitData(race.circuit.circuitId) : Promise.resolve(null),
+  ])
 
   const flag = COUNTRY_FLAGS[race.circuit?.country] ?? '🏁'
   const teamColor = race.teamWinner ? getTeamColor(race.teamWinner.teamName) : null
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-8">
-      <Link href="/" className="text-zinc-500 hover:text-white text-sm mb-6 inline-flex items-center gap-1 transition-colors">
-        ← Calendário
+      <Link href={backLink} className="text-zinc-500 hover:text-white text-sm mb-6 inline-flex items-center gap-1 transition-colors">
+        ← Calendário {isPastSeason ? year : ''}
       </Link>
 
       {/* Header */}
@@ -91,7 +209,13 @@ export default async function RacePage({ params }: { params: Promise<{ round: st
         <div className="flex items-center gap-2 text-zinc-500 text-sm mb-2">
           <span>{flag} {race.circuit?.country}</span>
           <span>·</span>
-          <span>Round {race.round}</span>
+          <span>Rodada {race.round}</span>
+          {isPastSeason && (
+            <>
+              <span>·</span>
+              <span className="text-zinc-600">{year}</span>
+            </>
+          )}
           {race.schedule?.sprint?.date && (
             <>
               <span>·</span>
@@ -112,10 +236,37 @@ export default async function RacePage({ params }: { params: Promise<{ round: st
         )}
       </div>
 
+      {/* Traçado + infos do circuito */}
+      {circuitData && (
+        <div className="mb-8">
+          <h2 className="text-sm font-semibold text-zinc-500 uppercase tracking-wide mb-3">Circuito</h2>
+          <div className="bg-zinc-900 rounded-xl border border-zinc-800 overflow-hidden flex flex-col sm:flex-row">
+            <div
+              className="flex-1 p-5 flex items-center justify-center border-b sm:border-b-0 sm:border-r border-zinc-800 [&_svg]:w-full [&_svg]:max-h-52 [&_svg]:h-auto"
+              dangerouslySetInnerHTML={{ __html: circuitData.svg }}
+            />
+            <div className="sm:w-44 p-5 flex flex-col justify-center gap-5">
+              {circuitData.length > 0 && (
+                <CircuitStat label="Comprimento" value={`${(circuitData.length / 1000).toFixed(3)} km`} />
+              )}
+              {circuitData.firstGP > 0 && (
+                <CircuitStat label="1º GP" value={String(circuitData.firstGP)} />
+              )}
+              {circuitData.opened > 0 && (
+                <CircuitStat label="Inaugurado" value={String(circuitData.opened)} />
+              )}
+              {circuitData.altitude !== null && (
+                <CircuitStat label="Altitude" value={`${circuitData.altitude} m`} />
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Resultado ou Agenda */}
       {isCompleted ? (
         <div className="mb-8">
-          <h2 className="text-sm font-semibold text-zinc-500 uppercase tracking-wide mb-3">Resultado {currentYear}</h2>
+          <h2 className="text-sm font-semibold text-zinc-500 uppercase tracking-wide mb-3">Resultado {year}</h2>
           <div
             className="bg-zinc-900 rounded-xl border border-zinc-800 p-5"
             style={teamColor ? { borderLeftColor: teamColor, borderLeftWidth: '3px' } : {}}
@@ -195,14 +346,14 @@ export default async function RacePage({ params }: { params: Promise<{ round: st
             Últimas vitórias neste circuito
           </h2>
           <div className="bg-zinc-900 rounded-xl border border-zinc-800 overflow-hidden">
-            {pastWinners.map(({ year, winner, team }) => {
+            {pastWinners.map(({ year: winYear, winner, team }) => {
               const color = team ? getTeamColor(team.teamName) : '#71717a'
               return (
                 <div
-                  key={year}
+                  key={winYear}
                   className="flex items-center gap-4 px-5 py-4 border-b border-zinc-800 last:border-0 hover:bg-zinc-800/40 transition-colors"
                 >
-                  <span className="text-zinc-600 text-sm font-mono w-10 flex-shrink-0">{year}</span>
+                  <span className="text-zinc-600 text-sm font-mono w-10 flex-shrink-0">{winYear}</span>
                   <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />
                   <div className="flex-1 min-w-0">
                     <Link
@@ -222,6 +373,15 @@ export default async function RacePage({ params }: { params: Promise<{ round: st
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+function CircuitStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <div className="text-xs text-zinc-600 mb-0.5">{label}</div>
+      <div className="text-sm font-semibold text-white">{value}</div>
     </div>
   )
 }

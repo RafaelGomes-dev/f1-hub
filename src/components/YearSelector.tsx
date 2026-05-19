@@ -1,7 +1,17 @@
 'use client'
 import { useRouter } from 'next/navigation'
 
-export default function YearSelector({ selectedYear, years }: { selectedYear: number; years: number[] }) {
+export default function YearSelector({
+  selectedYear,
+  years,
+  basePath = '/standings',
+  currentYear,
+}: {
+  selectedYear: number
+  years: number[]
+  basePath?: string
+  currentYear: number
+}) {
   const router = useRouter()
 
   return (
@@ -11,7 +21,7 @@ export default function YearSelector({ selectedYear, years }: { selectedYear: nu
         <span key={year} className="flex items-center gap-1.5">
           {i > 0 && <span className="text-zinc-700">·</span>}
           <button
-            onClick={() => router.push(year === 2026 ? '/standings' : `/standings?year=${year}`)}
+            onClick={() => router.push(year === currentYear ? basePath : `${basePath}?year=${year}`)}
             className={`transition-colors ${
               year === selectedYear
                 ? 'text-white font-semibold'

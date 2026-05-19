@@ -5,7 +5,7 @@ import { Flag, Trophy, Users, Newspaper } from 'lucide-react'
 
 const links = [
   { href: '/',          label: 'Calendário', icon: Flag      },
-  { href: '/standings', label: 'Standings',  icon: Trophy    },
+  { href: '/standings', label: 'Classificação', icon: Trophy    },
   { href: '/drivers',   label: 'Pilotos',    icon: Users     },
   { href: '/news',      label: 'Notícias',   icon: Newspaper },
 ]
@@ -17,7 +17,7 @@ export default function Navbar() {
     <nav className="bg-zinc-900 border-b border-red-600 sticky top-0 z-50">
       <div className="max-w-6xl mx-auto px-4 flex items-center gap-8 h-16">
         <Link href="/" className="text-red-500 font-bold text-2xl tracking-wider">
-          F1<span className="text-white">Hub</span>
+          F1<span className="text-white">Central</span>
         </Link>
         <div className="flex gap-2">
           {links.map(({ href, label, icon: Icon }) => (

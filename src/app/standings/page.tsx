@@ -49,9 +49,9 @@ export default async function StandingsPage({
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8">
-      <h1 className="text-3xl font-bold mb-2">Standings</h1>
+      <h1 className="text-3xl font-bold mb-2">Classificação</h1>
       <p className="text-zinc-500 text-sm mb-4">Campeonato Mundial de Fórmula 1</p>
-      <YearSelector selectedYear={year} years={AVAILABLE_YEARS} />
+      <YearSelector selectedYear={year} years={AVAILABLE_YEARS} currentYear={CURRENT_YEAR} />
       <StandingsTabs drivers={drivers} constructors={constructors} headshots={headshots} />
     </div>
   )
